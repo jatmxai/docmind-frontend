@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Sparkles,
   ArrowRight,
@@ -8,10 +9,37 @@ import {
   Lock,
   Zap,
   Github,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Spinner } from "@/components/ui/Spinner";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/components/ui/Toast";
 
 export function Landing() {
+  const { loginAsDemo } = useAuth();
+  const toast = useToast();
+  const nav = useNavigate();
+  const [loadingDemo, setLoadingDemo] = useState(false);
+
+  const tryDemo = async () => {
+    setLoadingDemo(true);
+    try {
+      await loginAsDemo();
+      toast.success(
+        "Welcome to the demo",
+        "A sample document is being indexed for you — it'll appear in the library shortly."
+      );
+      nav("/app", { replace: true });
+    } catch (err) {
+      toast.error(
+        "Couldn't start the demo",
+        err.response?.data?.detail ?? "Try again in a moment."
+      );
+      setLoadingDemo(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <nav className="px-6 md:px-10 py-5 flex items-center justify-between">
@@ -59,14 +87,25 @@ export function Landing() {
             Upload PDFs, spreadsheets, Word docs, or images. Ask anything. Get
             streaming answers with citations to the exact page, row, or section.
           </p>
-          <div className="mt-10 flex items-center justify-center gap-3 animate-fade-in-up">
-            <Link to="/register" className="btn-primary">
-              Try the demo
-              <ArrowRight size={16} />
-            </Link>
-            <Link to="/login" className="btn-ghost">
-              Sign in
-            </Link>
+          <div className="mt-10 flex flex-col items-center justify-center gap-3 animate-fade-in-up">
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={tryDemo}
+                disabled={loadingDemo}
+                className="btn-primary"
+              >
+                {loadingDemo ? <Spinner size={14} className="text-white" /> : <Play size={14} />}
+                Try the demo — no signup
+              </button>
+              <Link to="/register" className="btn-ghost">
+                Create an account
+                <ArrowRight size={14} />
+              </Link>
+            </div>
+            <p className="text-xs text-zinc-500">
+              Demo accounts are ephemeral and come with a sample document already indexed.
+            </p>
           </div>
 
           <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
