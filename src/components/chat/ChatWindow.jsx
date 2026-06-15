@@ -3,10 +3,12 @@ import { Send, Sparkles, MessageSquarePlus } from "lucide-react";
 import { api, SSE_URL, tokens } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { useToast } from "@/components/ui/Toast";
 import { MessageBubble } from "./MessageBubble";
 import { cn } from "@/lib/utils";
 
 export function ChatWindow({ conversationId, onConversationCreated, onMessageSent }) {
+  const toast = useToast();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -14,6 +16,7 @@ export function ChatWindow({ conversationId, onConversationCreated, onMessageSen
   const [streamedCitations, setStreamedCitations] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const endRef = useRef(null);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -32,6 +35,11 @@ export function ChatWindow({ conversationId, onConversationCreated, onMessageSen
       .finally(() => setLoadingHistory(false));
   }, [conversationId]);
 
+  const pickPrompt = (prompt) => {
+    setInput(prompt);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
   const send = async (e) => {
     e?.preventDefault();
     const text = input.trim();
@@ -44,6 +52,11 @@ export function ChatWindow({ conversationId, onConversationCreated, onMessageSen
         cid = r.data.id;
         onConversationCreated?.(cid);
       } catch (err) {
+        const detail = err.response?.data?.detail;
+        toast.error(
+          "Couldn't start a new chat",
+          detail?.message ?? detail ?? "Try again in a moment."
+        );
         return;
       }
     }
@@ -66,7 +79,11 @@ export function ChatWindow({ conversationId, onConversationCreated, onMessageSen
 
       if (!res.ok || !res.body) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData?.detail?.message ?? `Request failed (${res.status})`);
+        const msg =
+          errData?.detail?.message ??
+          errData?.detail ??
+          `Request failed (${res.status})`;
+        throw new Error(typeof msg === "string" ? msg : "Request failed");
       }
 
       const reader = res.body.getReader();
@@ -95,14 +112,16 @@ export function ChatWindow({ conversationId, onConversationCreated, onMessageSen
             if (event === "citations") {
               citations = data;
               setStreamedCitations(citations);
+            } else if (event === "error") {
+              throw new Error(data.message ?? "Stream error");
             } else if (event === "done") {
               // handled below
             } else if (data.token !== undefined) {
               fullText += data.token;
               setStreamedText(fullText);
             }
-          } catch {
-            /* ignore parse errors */
+          } catch (e) {
+            if (e instanceof Error && e.message.startsWith("Stream")) throw e;
           }
         }
       }
@@ -112,14 +131,10 @@ export function ChatWindow({ conversationId, onConversationCreated, onMessageSen
       ]);
       onMessageSent?.();
     } catch (err) {
-      setMessages((m) => [
-        ...m,
-        {
-          role: "assistant",
-          content: `*Error: ${err.message}*`,
-          citations: [],
-        },
-      ]);
+      toast.error("Couldn't send message", err.message ?? "Try again.");
+      // Roll back the optimistic user message so the next attempt is clean
+      setMessages((m) => m.slice(0, -1));
+      setInput(text);
     } finally {
       setStreaming(false);
       setStreamedText("");
@@ -135,7 +150,7 @@ export function ChatWindow({ conversationId, onConversationCreated, onMessageSen
             <Spinner />
           </div>
         ) : messages.length === 0 && !streaming ? (
-          <EmptyState />
+          <EmptyState onPick={pickPrompt} />
         ) : (
           <div className="max-w-3xl mx-auto space-y-6">
             {messages.map((m, i) => (
@@ -163,6 +178,7 @@ export function ChatWindow({ conversationId, onConversationCreated, onMessageSen
         <form onSubmit={send} className="max-w-3xl mx-auto flex items-end gap-2">
           <div className="flex-1 relative">
             <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -199,7 +215,7 @@ export function ChatWindow({ conversationId, onConversationCreated, onMessageSen
   );
 }
 
-function EmptyState() {
+function EmptyState({ onPick }) {
   const examples = [
     "Summarize the key risks in this contract",
     "What was R&D spend last year?",
@@ -219,15 +235,23 @@ function EmptyState() {
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
         {examples.map((ex) => (
-          <div
+          <button
             key={ex}
-            className="px-3 py-2.5 text-sm text-zinc-400 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] hover:text-zinc-200 hover:border-white/[0.1] cursor-pointer transition-all"
+            type="button"
+            onClick={() => onPick?.(ex)}
+            className={cn(
+              "group px-3 py-2.5 text-sm text-left rounded-lg",
+              "border border-white/[0.06] bg-white/[0.02]",
+              "hover:bg-white/[0.06] hover:border-accent-500/30",
+              "focus:outline-none focus:ring-2 focus:ring-accent-500/40",
+              "transition-all duration-150"
+            )}
           >
-            <span className="inline-flex items-center gap-2">
-              <MessageSquarePlus size={13} className="text-accent-400" />
+            <span className="inline-flex items-center gap-2 text-zinc-400 group-hover:text-zinc-100 transition-colors">
+              <MessageSquarePlus size={13} className="text-accent-400 group-hover:scale-110 transition-transform" />
               {ex}
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </div>

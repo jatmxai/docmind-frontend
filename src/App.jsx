@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { ToastProvider } from "@/components/ui/Toast";
 import { AppShell } from "@/components/layout/AppShell";
 import { Landing } from "@/pages/Landing";
 import { Login } from "@/pages/Login";
@@ -10,15 +11,17 @@ import { Spinner } from "@/components/ui/Spinner";
 
 export function App() {
   return (
-    <AuthProvider>
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
-        <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
-        <Route path="/app" element={<Private><AppRoot /></Private>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
+          <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+          <Route path="/app" element={<Private><AppRoot /></Private>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 
